@@ -1,26 +1,40 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f7f3ea;
+  --foreground: #071a2b;
+  --ink: #071a2b;
+  --gold: #c9a45c;
+  --cream: #f7f3ea;
+  --green: #405a48;
+  --red: #b42025;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --color-ink: var(--ink);
+  --color-gold: var(--gold);
+  --color-cream: var(--cream);
+  --color-green: var(--green);
+  --color-red: var(--red);
+  --font-sans: var(--font-body);
+  --font-serif: var(--font-display);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-body), sans-serif;
 }
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+.nav-link { position: relative; transition: color .2s ease; }
+.nav-link::after { content: ""; position: absolute; left: 0; right: 100%; bottom: -8px; height: 1px; background: var(--gold); transition: right .25s ease; }
+.nav-link:hover::after { right: 0; }
+.eyebrow { color: var(--red); font-size: 10px; font-weight: 700; letter-spacing: .18em; text-transform: uppercase; }
+.search-field { display: flex; min-height: 68px; align-items: center; gap: 11px; padding: 13px 18px; color: rgba(7,26,43,.58); }
+.search-field span { display: flex; flex-direction: column; gap: 3px; }
+.search-field small { color: rgba(7,26,43,.5); font-size: 10px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; }
+.search-field strong { color: var(--ink); font-size: 13px; font-weight: 600; }

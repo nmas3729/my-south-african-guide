@@ -1,0 +1,338 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  TRAVELLER
+  GUIDE
+  ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  DISABLED
+}
+
+enum VerificationStatus {
+  DRAFT
+  PENDING
+  SUBMITTED
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+  SUSPENDED
+}
+
+enum VerificationDocumentType {
+  IDENTITY_DOCUMENT
+  GUIDE_REGISTRATION
+  PERMIT
+  CERTIFICATE
+  OTHER
+}
+
+enum VerificationDocumentStatus {
+  SUBMITTED
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+  EXPIRED
+}
+
+enum ExperienceStatus {
+  DRAFT
+  PENDING_APPROVAL
+  ACTIVE
+  SUSPENDED
+}
+
+enum BookingStatus {
+  REQUESTED
+  ACCEPTED
+  DECLINED
+  CONFIRMED
+  PAID
+  COMPLETED
+  CANCELLED
+  REFUNDED
+  DISPUTED
+}
+
+enum ReviewStatus {
+  DRAFT
+  PUBLISHED
+  REJECTED
+  HIDDEN
+}
+
+enum DestinationStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  REFUNDED
+}
+
+enum CommissionStatus {
+  PENDING
+  EARNED
+  SETTLED
+  VOIDED
+}
+
+model User {
+  id                String            @id @default(cuid())
+  name              String?
+  firstName         String?
+  lastName          String?
+  email             String            @unique
+  passwordHash      String?
+  phone             String?
+  role              UserRole          @default(TRAVELLER)
+  status            UserStatus        @default(ACTIVE)
+  emailVerifiedAt   DateTime?
+  sessionVersion    Int               @default(0)
+  profileImage      String?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  travellerProfile  TravellerProfile?
+  guideProfile      GuideProfile?
+  travellerBookings Booking[]         @relation("TravellerBookings")
+  reviews           Review[]          @relation("TravellerReviews")
+  emailVerificationTokens EmailVerificationToken[]
+  passwordResetTokens PasswordResetToken[]
+
+  @@index([role, status])
+  @@index([emailVerifiedAt])
+}
+
+model EmailVerificationToken {
+  id         String    @id @default(cuid())
+  userId     String
+  tokenHash  String    @unique
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+  @@index([expiresAt, consumedAt])
+}
+
+model PasswordResetToken {
+  id         String    @id @default(cuid())
+  userId     String
+  tokenHash  String    @unique
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+  @@index([expiresAt, consumedAt])
+}
+
+model TravellerProfile {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  country     String?
+  phone       String?
+  preferences Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model GuideProfile {
+  id                    String                 @id @default(cuid())
+  userId                String                 @unique
+  slug                  String?                @unique
+  displayName           String?
+  bio                   String?
+  location              String?
+  languages             String[]
+  provinces             String[]
+  qualifications        String[]
+  profileImage          String?
+  verified              Boolean                @default(false)
+  verificationStatus    VerificationStatus     @default(DRAFT)
+  verificationDate      DateTime?
+  rejectionReason       String?
+  active                Boolean                @default(true)
+  rating                Decimal                @default(0) @db.Decimal(3, 2)
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  user                  User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  experiences           Experience[]
+  verificationDocuments VerificationDocument[]
+  bookings              Booking[]              @relation("GuideBookings")
+  reviews               Review[]               @relation("GuideReviews")
+
+  @@index([verificationStatus])
+  @@index([verified])
+  @@index([active, verificationStatus])
+}
+
+model VerificationDocument {
+  id           String                     @id @default(cuid())
+  guideId      String
+  documentType VerificationDocumentType
+  storageReference String
+  status       VerificationDocumentStatus @default(SUBMITTED)
+  submittedAt  DateTime                   @default(now())
+  reviewedAt   DateTime?
+  rejectionReason String?
+  guide        GuideProfile               @relation(fields: [guideId], references: [id], onDelete: Cascade)
+
+  @@index([guideId, status])
+}
+
+model Destination {
+  id          String       @id @default(cuid())
+  name        String
+  province    String
+  description String?
+  image       String?
+  slug        String       @unique
+  status      DestinationStatus @default(DRAFT)
+  publishedAt DateTime?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  experiences Experience[]
+
+  @@index([province])
+  @@index([status, province])
+}
+
+model Experience {
+  id            String            @id @default(cuid())
+  guideId       String
+  destinationId String
+  title         String
+  slug          String            @unique
+  summary       String?
+  description   String
+  category      String?
+  duration      Int // Duration in minutes.
+  location      String?
+  meetingPoint  String?
+  groupLimit    Int?
+  price         Int // Price in minor currency units, e.g. cents.
+  currency      String            @default("ZAR") @db.VarChar(3)
+  status        ExperienceStatus  @default(DRAFT)
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  publishedAt   DateTime?
+  guide         GuideProfile      @relation(fields: [guideId], references: [id], onDelete: Restrict)
+  destination   Destination       @relation(fields: [destinationId], references: [id], onDelete: Restrict)
+  images        ExperienceImage[]
+  bookings      Booking[]
+  reviews       Review[]
+
+  @@index([guideId, status])
+  @@index([destinationId, status])
+  @@index([status])
+}
+
+model ExperienceImage {
+  id           String     @id @default(cuid())
+  experienceId String
+  url          String
+  altText      String
+  order        Int        @default(0)
+  createdAt    DateTime   @default(now())
+  experience   Experience @relation(fields: [experienceId], references: [id], onDelete: Cascade)
+
+  @@unique([experienceId, order])
+  @@index([experienceId])
+}
+
+model Booking {
+  id             String        @id @default(cuid())
+  travellerId    String
+  experienceId   String
+  guideId        String
+  bookingDate    DateTime
+  numberOfGuests Int
+  travellerMessage String?
+  status         BookingStatus @default(REQUESTED)
+  totalAmount    Int // Total in minor currency units.
+  currency       String        @default("ZAR") @db.VarChar(3)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  acceptedAt     DateTime?
+  declinedAt     DateTime?
+  confirmedAt    DateTime?
+  completedAt    DateTime?
+  cancelledAt    DateTime?
+  confirmationReference String? @unique
+  traveller      User          @relation("TravellerBookings", fields: [travellerId], references: [id], onDelete: Restrict)
+  experience     Experience    @relation(fields: [experienceId], references: [id], onDelete: Restrict)
+  guide          GuideProfile  @relation("GuideBookings", fields: [guideId], references: [id], onDelete: Restrict)
+  payment        Payment?
+  commission     Commission?
+  review         Review?
+
+  @@index([travellerId, status])
+  @@index([guideId, status])
+  @@index([experienceId, bookingDate])
+  @@index([status, bookingDate])
+}
+
+model Review {
+  id           String       @id @default(cuid())
+  bookingId    String       @unique
+  travellerId  String
+  guideId      String
+  experienceId String
+  rating       Int
+  comment      String
+  status       ReviewStatus @default(DRAFT)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  publishedAt  DateTime?
+  booking      Booking      @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  traveller    User         @relation("TravellerReviews", fields: [travellerId], references: [id], onDelete: Restrict)
+  guide        GuideProfile @relation("GuideReviews", fields: [guideId], references: [id], onDelete: Restrict)
+  experience   Experience   @relation(fields: [experienceId], references: [id], onDelete: Restrict)
+
+  @@index([guideId, createdAt])
+  @@index([experienceId, createdAt])
+  @@index([status, createdAt])
+}
+
+model Payment {
+  id            String        @id @default(cuid())
+  bookingId     String        @unique
+  amount        Int // Amount in minor currency units.
+  currency      String        @default("ZAR") @db.VarChar(3)
+  provider      String
+  transactionId String?       @unique
+  status        PaymentStatus @default(PENDING)
+  createdAt     DateTime      @default(now())
+  booking       Booking       @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+
+  @@index([provider, transactionId])
+  @@index([status, createdAt])
+}
+
+model Commission {
+  id         String           @id @default(cuid())
+  bookingId  String           @unique
+  percentage Decimal          @db.Decimal(5, 2)
+  amount     Int // Commission in minor currency units.
+  status     CommissionStatus @default(PENDING)
+  createdAt  DateTime         @default(now())
+  booking    Booking          @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+
+  @@index([status, createdAt])
+}
