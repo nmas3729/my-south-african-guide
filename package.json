@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "prisma generate && next build",
     "start": "next start",
     "lint": "eslint",
     "db:up": "docker compose up -d postgres",
@@ -16,7 +16,8 @@
     "db:check": "node scripts/check-db.mjs",
     "db:studio": "prisma studio",
     "test:auth": "vitest run tests/auth",
-    "test:marketplace": "vitest run tests/marketplace"
+    "test:marketplace": "vitest run tests/marketplace",
+    "postinstall": "prisma generate"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.10.0",

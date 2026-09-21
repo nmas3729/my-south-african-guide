@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { BookingStatus, ExperienceStatus, VerificationStatus } from "@prisma/client";
+import { Prisma, BookingStatus, ExperienceStatus, VerificationStatus } from "@prisma/client";
 import { prisma } from "@/server/db/client";
 import { requireRole, requireUser } from "@/server/auth/session";
 import { assertBookingTransition } from "@/server/marketplace/bookings/state-machine";
@@ -31,29 +31,7 @@ const bookingSelect = {
   guide: { select: { id: true, slug: true, displayName: true, profileImage: true } },
 } as const;
 
-type BookingRecord = {
-  id: string;
-  travellerId: string;
-  experienceId: string;
-  guideId: string;
-  bookingDate: Date;
-  numberOfGuests: number;
-  travellerMessage: string | null;
-  status: BookingStatus;
-  totalAmount: number;
-  currency: string;
-  createdAt: Date;
-  updatedAt: Date;
-  acceptedAt: Date | null;
-  declinedAt: Date | null;
-  confirmedAt: Date | null;
-  completedAt: Date | null;
-  cancelledAt: Date | null;
-  confirmationReference: string | null;
-  traveller: { id: string; name: string | null; firstName: string | null; lastName: string | null };
-  experience: { id: string; title: string; slug: string; summary: string | null; category: string | null };
-  guide: { id: string; slug: string | null; displayName: string | null; profileImage: string | null };
-};
+type BookingRecord = Prisma.BookingGetPayload<{ select: typeof bookingSelect }>;
 
 function mapBookingRecord(record: BookingRecord): BookingDto {
   return {
@@ -130,7 +108,7 @@ export async function createBookingRequest(input: unknown): Promise<BookingDto> 
     throw new ConflictError("The requested number of travellers exceeds this experience's group limit.");
   }
 
-  const record = await prisma.booking.create({
+  const record: BookingRecord = await prisma.booking.create({
     data: {
       travellerId: traveller.id,
       experienceId: experience.id,
@@ -145,7 +123,7 @@ export async function createBookingRequest(input: unknown): Promise<BookingDto> 
     select: bookingSelect,
   });
 
-  return mapBookingRecord(record as BookingRecord);
+  return mapBookingRecord(record);
 }
 
 export async function getBookingById(bookingId: string): Promise<BookingDto> {
@@ -159,38 +137,38 @@ export async function getBookingById(bookingId: string): Promise<BookingDto> {
     if (!guide || booking.guideId !== guide.id) throw new AuthorizationError();
   }
 
-  return mapBookingRecord(booking as BookingRecord);
+  return mapBookingRecord(booking);
 }
 
 export async function listMyBookings(): Promise<BookingDto[]> {
   const user = await requireUser();
 
   if (user.role === "TRAVELLER") {
-    const records = await prisma.booking.findMany({
+    const records: BookingRecord[] = await prisma.booking.findMany({
       where: { travellerId: user.id },
       select: bookingSelect,
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     });
-    return records.map((record) => mapBookingRecord(record as BookingRecord));
+    return records.map((record: BookingRecord) => mapBookingRecord(record));
   }
 
   if (user.role === "GUIDE") {
     const guide = await findGuideProfileForUser(user.id);
     if (!guide) throw new NotFoundError("Guide profile not found.");
-    const records = await prisma.booking.findMany({
+    const records: BookingRecord[] = await prisma.booking.findMany({
       where: { guideId: guide.id },
       select: bookingSelect,
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     });
-    return records.map((record) => mapBookingRecord(record as BookingRecord));
+    return records.map((record: BookingRecord) => mapBookingRecord(record));
   }
 
   if (user.role === "ADMIN") {
-    const records = await prisma.booking.findMany({
+    const records: BookingRecord[] = await prisma.booking.findMany({
       select: bookingSelect,
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     });
-    return records.map((record) => mapBookingRecord(record as BookingRecord));
+    return records.map((record: BookingRecord) => mapBookingRecord(record));
   }
 
   throw new AuthorizationError("This booking view is not available for this role.");
@@ -201,13 +179,13 @@ export async function listIncomingBookingRequests(): Promise<BookingDto[]> {
   const guide = await findGuideProfileForUser(guideUser.id);
   if (!guide) throw new NotFoundError("Guide profile not found.");
 
-  const records = await prisma.booking.findMany({
+  const records: BookingRecord[] = await prisma.booking.findMany({
     where: { guideId: guide.id, status: BookingStatus.REQUESTED },
     select: bookingSelect,
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
   });
 
-  return records.map((record) => mapBookingRecord(record as BookingRecord));
+  return records.map((record: BookingRecord) => mapBookingRecord(record));
 }
 
 export async function acceptBookingRequest(bookingId: string): Promise<BookingDto> {
@@ -215,7 +193,7 @@ export async function acceptBookingRequest(bookingId: string): Promise<BookingDt
   const guide = await findGuideProfileForUser(guideUser.id);
   if (!guide) throw new NotFoundError("Guide profile not found.");
 
-  const result = await prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async (tx: Prisma.TransactionClient): Promise<BookingDto> => {
     const booking = await tx.booking.findUnique({ where: { id: bookingId }, select: { id: true, guideId: true, status: true } });
     if (!booking) throw new NotFoundError("Booking not found.");
     if (booking.guideId !== guide.id) throw new AuthorizationError();
@@ -227,9 +205,9 @@ export async function acceptBookingRequest(bookingId: string): Promise<BookingDt
     });
     if (updated.count !== 1) throw new ConflictError("This booking can no longer be accepted.");
 
-    const refreshed = await tx.booking.findUnique({ where: { id: bookingId }, select: bookingSelect });
+    const refreshed: BookingRecord | null = await tx.booking.findUnique({ where: { id: bookingId }, select: bookingSelect });
     if (!refreshed) throw new NotFoundError("Booking not found.");
-    return mapBookingRecord(refreshed as BookingRecord);
+    return mapBookingRecord(refreshed);
   });
 
   return result;
@@ -240,7 +218,7 @@ export async function declineBookingRequest(bookingId: string): Promise<BookingD
   const guide = await findGuideProfileForUser(guideUser.id);
   if (!guide) throw new NotFoundError("Guide profile not found.");
 
-  const result = await prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async (tx: Prisma.TransactionClient): Promise<BookingDto> => {
     const booking = await tx.booking.findUnique({ where: { id: bookingId }, select: { id: true, guideId: true, status: true } });
     if (!booking) throw new NotFoundError("Booking not found.");
     if (booking.guideId !== guide.id) throw new AuthorizationError();
@@ -252,9 +230,9 @@ export async function declineBookingRequest(bookingId: string): Promise<BookingD
     });
     if (updated.count !== 1) throw new ConflictError("This booking can no longer be declined.");
 
-    const refreshed = await tx.booking.findUnique({ where: { id: bookingId }, select: bookingSelect });
+    const refreshed: BookingRecord | null = await tx.booking.findUnique({ where: { id: bookingId }, select: bookingSelect });
     if (!refreshed) throw new NotFoundError("Booking not found.");
-    return mapBookingRecord(refreshed as BookingRecord);
+    return mapBookingRecord(refreshed);
   });
 
   return result;
@@ -263,7 +241,7 @@ export async function declineBookingRequest(bookingId: string): Promise<BookingD
 export async function confirmBooking(bookingId: string): Promise<BookingDto> {
   const traveller = await requireRole("TRAVELLER");
 
-  const result = await prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async (tx: Prisma.TransactionClient): Promise<BookingDto> => {
     const booking = await tx.booking.findUnique({ where: { id: bookingId }, select: { id: true, travellerId: true, status: true } });
     if (!booking) throw new NotFoundError("Booking not found.");
     if (booking.travellerId !== traveller.id) throw new AuthorizationError();
@@ -282,9 +260,9 @@ export async function confirmBooking(bookingId: string): Promise<BookingDto> {
     });
     if (updated.count !== 1) throw new ConflictError("This booking can no longer be confirmed.");
 
-    const refreshed = await tx.booking.findUnique({ where: { id: bookingId }, select: bookingSelect });
+    const refreshed: BookingRecord | null = await tx.booking.findUnique({ where: { id: bookingId }, select: bookingSelect });
     if (!refreshed) throw new NotFoundError("Booking not found.");
-    return mapBookingRecord(refreshed as BookingRecord);
+    return mapBookingRecord(refreshed);
   });
 
   return result;
@@ -309,7 +287,7 @@ export async function cancelBookingRequest(bookingId: string): Promise<BookingDt
   });
   if (updated.count !== 1) throw new ConflictError("This booking can no longer be cancelled.");
 
-  const refreshed = await prisma.booking.findUnique({ where: { id: bookingId }, select: bookingSelect });
+  const refreshed: BookingRecord | null = await prisma.booking.findUnique({ where: { id: bookingId }, select: bookingSelect });
   if (!refreshed) throw new NotFoundError("Booking not found.");
-  return mapBookingRecord(refreshed as BookingRecord);
+  return mapBookingRecord(refreshed);
 }

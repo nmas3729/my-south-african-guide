@@ -36,7 +36,18 @@ export function mapDomainError(error: unknown): { status: number; body: { error:
     return { status: code === "FORBIDDEN" ? 403 : 401, body: { error: { code, message: code === "FORBIDDEN" ? "You are not allowed to perform this action." : "Authentication required." } } };
   }
   if (error instanceof ZodError) return { status: 400, body: { error: { code: "VALIDATION", message: "Invalid request." } } };
-  if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") return { status: 409, body: { error: { code: "CONFLICT", message: "The requested resource already exists." } } };
+  if (error instanceof Prisma.PrismaClientKnownRequestError) {
+    switch (error.code) {
+      case "P2002":
+        return { status: 409, body: { error: { code: "CONFLICT", message: "The requested resource already exists." } } };
+      case "P2003":
+        return { status: 409, body: { error: { code: "CONFLICT", message: "The requested operation violates a database constraint." } } };
+      case "P2025":
+        return { status: 404, body: { error: { code: "NOT_FOUND", message: "Resource not found." } } };
+      default:
+        return { status: 500, body: { error: { code: "INTERNAL", message: "Something went wrong." } } };
+    }
+  }
   if (error instanceof DomainError) {
     const status = error.code === "VALIDATION" ? 400 : error.code === "UNAUTHENTICATED" ? 401 : error.code === "FORBIDDEN" ? 403 : error.code === "NOT_FOUND" ? 404 : error.code === "CONFLICT" ? 409 : 500;
     return { status, body: { error: { code: error.code, message: error.message } } };

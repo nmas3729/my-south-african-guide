@@ -1,4 +1,5 @@
 import "server-only";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/server/db/client";
 import { hashPassword } from "@/server/auth/password";
 import { createOpaqueToken, hashOpaqueToken } from "@/server/auth/token-core";
@@ -49,7 +50,7 @@ export async function resetPassword(rawToken: string, password: string): Promise
 
   const consumedAt = new Date();
   const passwordHash = await hashPassword(password);
-  const result = await prisma.$transaction(async (transaction) => {
+  const result = await prisma.$transaction(async (transaction: Prisma.TransactionClient) => {
     const consumed = await transaction.passwordResetToken.updateMany({
       where: { id: token.id, consumedAt: null, expiresAt: { gt: consumedAt } },
       data: { consumedAt },
