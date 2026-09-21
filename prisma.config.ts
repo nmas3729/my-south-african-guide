@@ -1,5 +1,5 @@
 import { config } from "dotenv";
-import { defineConfig, env } from "prisma/config";
+import { defineConfig } from "prisma/config";
 
 config({ path: ".env.local" });
 config();
@@ -10,6 +10,8 @@ export default defineConfig({
     path: "prisma/migrations",
   },
   datasource: {
-    url: env("DATABASE_URL"),
+    // This placeholder is only used during build-time Prisma generation, which does not connect to the database.
+    // The real DATABASE_URL is injected by Coolify at runtime for the running app.
+    url: process.env.DATABASE_URL ?? "postgresql://placeholder:placeholder@localhost:5432/placeholder",
   },
 });
