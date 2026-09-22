@@ -1,3 +1,6 @@
 import { DetailPage } from "@/components/secondary-page";
-export const metadata = { title: "Contact | My South African Guide" };
+export const metadata = {
+  title: "Contact My South African Guide",
+  description: "Get in touch to plan a South Africa trip, ask about a guide, transport or a special experience enquiry.",
+};
 export default function ContactPage() { return <DetailPage eyebrow="Let’s talk about your trip" title="Start with a hello." copy="Tell us what you are dreaming about, and our journey designers will help you find the right way in." image="https://images.unsplash.com/photo-1580060839134-75a5edca2e99?auto=format&fit=crop&w=2000&q=85" />; }

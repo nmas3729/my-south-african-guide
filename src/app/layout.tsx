@@ -14,15 +14,23 @@ const cormorant = Cormorant_Garamond({
 });
 
 export const metadata: Metadata = {
-  title: "My South African Guide | Travel with local experts",
-  description: "Discover South Africa through verified local guides, private drivers and unforgettable experiences.",
+  title: {
+    default: "My South African Guide | Local Guides, Experiences & Travel",
+    template: "%s | My South African Guide",
+  },
+  description: "Discover South Africa through verified local guides, memorable experiences, stunning destinations and trusted transport planning.",
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"),
   alternates: { canonical: "/" },
   openGraph: {
     type: "website",
-    title: "My South African Guide | Travel with local experts",
-    description: "Discover South Africa through verified local guides, private drivers and unforgettable experiences.",
+    title: "My South African Guide | Local Guides, Experiences & Travel",
+    description: "Discover South Africa through verified local guides, memorable experiences, stunning destinations and trusted transport planning.",
     siteName: "My South African Guide",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "My South African Guide | Local Guides, Experiences & Travel",
+    description: "Discover South Africa through verified local guides, memorable experiences, stunning destinations and trusted transport planning.",
   },
 };
 

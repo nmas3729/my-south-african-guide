@@ -1,3 +1,6 @@
 import { DetailPage } from "@/components/secondary-page";
-export const metadata = { title: "Transport | My South African Guide" };
+export const metadata = {
+  title: "South Africa Travel & Transport",
+  description: "Plan a comfortable way around South Africa with trusted local transport options and easy traveller enquiries.",
+};
 export default function TransportPage() { return <DetailPage eyebrow="The road is part of the journey" title="Travel comfortably, go further." copy="From airport transfers to private road trips, connect with trusted drivers who make getting around feel easy." image="https://images.unsplash.com/photo-1518684079-3c830dcef090?auto=format&fit=crop&w=2000&q=85" />; }
