@@ -19,7 +19,38 @@ const trustItems = [
 
 export default function Home() {
   return <main>
-    <section className="relative flex min-h-[760px] items-end overflow-hidden bg-ink pb-24 text-white md:min-h-[820px] md:pb-28"><Image src="https://images.unsplash.com/photo-1516026672322-bc52d61a55d5?auto=format&fit=crop&w=2200&q=90" alt="South African landscape at golden hour" fill priority sizes="100vw" className="object-cover object-center" /><div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(7,26,43,.88)_0%,rgba(7,26,43,.48)_56%,rgba(7,26,43,.18)_100%)]" /><div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-ink/45 to-transparent" /><Navbar /><div className="relative z-10 mx-auto w-full max-w-[1320px] px-5 lg:px-8"><div className="grid items-end gap-10 xl:grid-cols-[1.15fr_0.85fr]"><div className="max-w-3xl"><FadeIn><p className="mb-5 text-[11px] font-semibold uppercase tracking-[0.28em] text-gold">South Africa, seen differently</p><h1 className="max-w-3xl font-serif text-6xl leading-[.88] tracking-[-0.02em] md:text-8xl">Discover South Africa<br /><em className="font-normal text-gold">with local experts.</em></h1><p className="mt-7 max-w-lg text-base leading-relaxed text-white/75 md:text-lg">Find verified guides, private drivers and unforgettable experiences across the country we call home.</p><div className="mt-9 flex flex-wrap items-center gap-5"><Link href="/experiences" className="inline-flex items-center gap-3 bg-red px-6 py-4 text-xs font-bold uppercase tracking-[0.14em] transition hover:bg-[#961a1f]">Explore experiences <ArrowRight size={16} /></Link><Link href="/become-guide" className="inline-flex items-center gap-2 border-b border-white/60 pb-1 text-xs font-bold uppercase tracking-[0.14em] transition hover:border-gold hover:text-gold">Become a guide</Link></div></FadeIn></div><div className="justify-self-end"><div className="mt-14 md:mt-20"><SearchBox /></div></div></div></div></section>
+    <section className="relative flex min-h-[760px] items-end overflow-hidden bg-ink pb-24 text-white md:min-h-[820px] md:pb-28">
+      <Image src="https://images.unsplash.com/photo-1516026672322-bc52d61a55d5?auto=format&fit=crop&w=2200&q=90" alt="South African landscape at golden hour" fill priority sizes="100vw" className="object-cover object-center" />
+      <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(7,26,43,.88)_0%,rgba(7,26,43,.48)_56%,rgba(7,26,43,.18)_100%)]" />
+      <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-ink/45 to-transparent" />
+      <Navbar />
+      <div className="relative z-10 mx-auto w-full max-w-[1320px] px-5 pt-24 md:pt-0 lg:px-8">
+        <div className="grid items-end gap-8 xl:grid-cols-[1.15fr_0.85fr]">
+          <div className="max-w-3xl">
+            <FadeIn>
+              <p className="mb-4 text-[10px] font-semibold uppercase tracking-[0.24em] text-gold md:mb-5 md:text-[11px]">South Africa, seen differently</p>
+              <h1 className="max-w-[7.5ch] font-serif text-[3.2rem] leading-[0.75] tracking-[-0.06em] text-white md:max-w-3xl md:text-6xl md:leading-[.88] md:tracking-[-0.02em] xl:text-8xl">
+                Discover<br />
+                South Africa<br />
+                <em className="block font-normal text-gold">with local<br className="md:hidden" />experts.</em>
+              </h1>
+              <p className="mt-6 max-w-lg text-sm leading-relaxed text-white/75 md:mt-7 md:text-base md:text-lg">Find verified guides, private drivers and unforgettable experiences across the country we call home.</p>
+              <div className="mt-8 flex flex-wrap items-center gap-5 md:mt-9">
+                <Link href="/experiences" className="inline-flex items-center gap-3 bg-red px-6 py-4 text-[10px] font-bold uppercase tracking-[0.14em] transition hover:bg-[#961a1f] md:text-xs">Explore experiences <ArrowRight size={16} /></Link>
+                <Link href="/become-guide" className="inline-flex items-center gap-2 border-b border-white/60 pb-1 text-[10px] font-bold uppercase tracking-[0.14em] transition hover:border-gold hover:text-gold md:text-xs">Become a guide</Link>
+              </div>
+            </FadeIn>
+          </div>
+          <div className="justify-self-end">
+            <FadeIn className="w-full max-w-[390px] rounded-[18px] border border-white/15 bg-white/5 p-3 backdrop-blur-[4px] shadow-[0_28px_60px_rgba(7,26,43,0.26)]">
+              <div className="overflow-hidden rounded-[12px] border border-white/10 bg-cream text-ink">
+                <SearchBox />
+              </div>
+            </FadeIn>
+          </div>
+        </div>
+      </div>
+    </section>
     <section className="bg-ink px-5 pb-20 text-white lg:px-8"><div className="mx-auto grid max-w-[1320px] gap-4 md:grid-cols-2 lg:grid-cols-4">{trustItems.map(({ icon: Icon, title, copy }) => <div key={title} className="editorial-panel border border-white/10 bg-white/[0.02] px-6 py-8"><Icon className="mb-7 text-gold" size={22} strokeWidth={1.5} /><h2 className="font-serif text-2xl text-white/90">{title}</h2><p className="mt-3 max-w-[220px] text-sm leading-relaxed text-white/55">{copy}</p></div>)}</div></section>
     <section className="bg-cream px-5 py-24 lg:px-8"><div className="mx-auto max-w-[1320px]"><SectionHeading eyebrow="Go deeper" title="A country of nine different stories." copy="From the Atlantic edge to the bushveld, each province has its own rhythm, flavour and welcome." action="Explore all destinations" href="/destinations" /><div className="grid gap-4 md:grid-cols-[1.3fr_0.7fr_0.7fr]">{destinations.map((destination, index) => <FadeIn key={destination.province} className={index === 0 ? "md:col-span-1" : ""}><Link href={`/destinations/${destination.slug}`} className={`ambient-card group relative block overflow-hidden rounded-[4px] border border-ink/10 ${index === 0 ? 'aspect-[1.1]' : 'aspect-[.82]'}`}><Image src={destination.heroImage} alt={destination.name} fill sizes="(max-width: 768px) 90vw, 50vw" className="object-cover transition duration-700 group-hover:scale-105" /><div className="absolute inset-0 bg-gradient-to-t from-ink/90 via-ink/15 to-transparent" /><div className="absolute bottom-0 p-6 text-white"><p className="mb-2 text-[10px] font-bold uppercase tracking-[.18em] text-gold">{destination.province}</p><h3 className={index === 0 ? "font-serif text-4xl leading-none" : "font-serif text-3xl leading-none"}>{destination.name}</h3><p className="mt-2 max-w-[26rem] text-xs text-white/70">{destination.description}</p></div><span className="absolute right-5 top-5 grid h-9 w-9 place-items-center rounded-full border border-white/40 text-white transition group-hover:bg-white group-hover:text-ink"><ArrowRight size={15} /></span></Link></FadeIn>)}</div></div></section>
     <section className="bg-[#eee9df] px-5 py-24 lg:px-8"><div className="mx-auto max-w-[1320px]"><SectionHeading eyebrow="The good stuff" title="Go where the story is." copy="Unhurried days, beautiful places and the kind of local knowledge you cannot find in a guidebook." action="See all experiences" /><div className="grid gap-5 md:grid-cols-[1.2fr_0.8fr_0.8fr]">{experiences.map((experience, index) => <FadeIn key={experience.title} className={index === 0 ? "md:col-span-1" : ""}><div className={index === 0 ? "h-full" : ""}><ExperienceCard experience={experience} /></div></FadeIn>)}</div></div></section>
