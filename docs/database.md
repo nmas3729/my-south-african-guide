@@ -146,4 +146,6 @@ The current local database has no availability rules, exceptions, slots, reserva
 
 ## Current Scope
 
-Phase 1 establishes database structures only. It does not add availability calculation, reservation or scheduling services, event generation, payment integrations/webhooks, invoice generation, seed data, APIs, UI, or dashboards. The migration is intended for the local PostgreSQL environment only in this phase; production remains untouched.
+The Prisma seed command (`pnpm db:seed`) idempotently upserts the current demo destinations, guides, and assigned experiences. It uses reserved `example.invalid` guide email addresses and does not assign passwords. The Greater Kruger destination is included for the existing Kruger experience; the Winelands experience is excluded until a guide is assigned in the catalog. Seed data leaves unknown experience timezone, pricing model, and group capacity unset. It does not create tour slots because no authoritative availability schedule or capacity has been configured, and it never deletes or changes bookings, payments, reservations, or existing tour slots.
+
+The seed command is reference-data setup, not a production data migration. Availability and reservation workflows remain separate from it; payment integrations/webhooks and invoice generation are not seeded.
