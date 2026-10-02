@@ -89,6 +89,56 @@ enum CommissionStatus {
   VOIDED
 }
 
+/// Lifecycle of a concrete bookable departure (a generated/hand-authored session).
+enum TourSlotStatus {
+  OPEN
+  CLOSED
+  CANCELLED
+}
+
+/// State of a capacity commitment against a TourSlot. Holds carry an expiry.
+enum SlotReservationStatus {
+  HELD
+  PENDING_PAYMENT
+  COMMITTED
+  CONFIRMED
+  RELEASED
+  EXPIRED
+  CANCELLED
+}
+
+/// Date/period-specific override layered on top of an AvailabilityRule.
+enum AvailabilityExceptionType {
+  BLOCKED
+  SPECIAL_DEPARTURE
+  CAPACITY_OVERRIDE
+}
+
+/// Immutable audit event describing something that happened to a booking.
+enum BookingEventType {
+  BOOKING_CREATED
+  STATUS_CHANGED
+  PAYMENT_INITIATED
+  PAYMENT_CONFIRMED
+  PAYMENT_FAILED
+  RESERVATION_HELD
+  RESERVATION_CONFIRMED
+  RESERVATION_RELEASED
+  RESERVATION_EXPIRED
+  RESERVATION_CANCELLED
+  CANCELLED
+  REFUNDED
+  NOTE
+}
+
+/// Lifecycle of a financial invoice. Tax treatment is intentionally undecided.
+enum InvoiceStatus {
+  DRAFT
+  ISSUED
+  PAID
+  VOID
+}
+
 model User {
   id                String            @id @default(cuid())
   name              String?
@@ -110,6 +160,8 @@ model User {
   reviews           Review[]          @relation("TravellerReviews")
   emailVerificationTokens EmailVerificationToken[]
   passwordResetTokens PasswordResetToken[]
+  bookingEvents     BookingEvent[]    @relation("BookingEventActor")
+  invoices          Invoice[]         @relation("CustomerInvoices")
 
   @@index([role, status])
   @@index([emailVerifiedAt])
@@ -159,6 +211,7 @@ model GuideProfile {
   displayName           String?
   bio                   String?
   location              String?
+  timezone              String?                @db.VarChar(64)
   languages             String[]
   provinces             String[]
   qualifications        String[]
@@ -173,9 +226,13 @@ model GuideProfile {
   updatedAt             DateTime               @updatedAt
   user                  User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
   experiences           Experience[]
+  eligibleExperiences   ExperienceGuide[]
   verificationDocuments VerificationDocument[]
   bookings              Booking[]              @relation("GuideBookings")
   reviews               Review[]               @relation("GuideReviews")
+  slots                 TourSlot[]             @relation("GuideSlots")
+  scheduleRules         GuideScheduleRule[]
+  unavailability        GuideUnavailability[]
 
   @@index([verificationStatus])
   @@index([verified])
@@ -226,6 +283,9 @@ model Experience {
   location      String?
   meetingPoint  String?
   groupLimit    Int?
+  timezone      String?           @db.VarChar(64)
+  languages     String[]          @default([])
+  pricingModel  String?
   price         Int // Price in minor currency units, e.g. cents.
   currency      String            @default("ZAR") @db.VarChar(3)
   status        ExperienceStatus  @default(DRAFT)
@@ -235,12 +295,27 @@ model Experience {
   guide         GuideProfile      @relation(fields: [guideId], references: [id], onDelete: Restrict)
   destination   Destination       @relation(fields: [destinationId], references: [id], onDelete: Restrict)
   images        ExperienceImage[]
+  eligibleGuides ExperienceGuide[]
   bookings      Booking[]
   reviews       Review[]
+  availabilityRules      AvailabilityRule[]
+  availabilityExceptions AvailabilityException[]
+  slots                  TourSlot[]
 
   @@index([guideId, status])
   @@index([destinationId, status])
   @@index([status])
+}
+
+model ExperienceGuide {
+  experienceId String
+  guideId      String
+  createdAt    DateTime     @default(now()) @db.Timestamptz(3)
+  experience   Experience  @relation(fields: [experienceId], references: [id], onDelete: Cascade)
+  guide        GuideProfile @relation(fields: [guideId], references: [id], onDelete: Cascade)
+
+  @@id([experienceId, guideId])
+  @@index([guideId, experienceId])
 }
 
 model ExperienceImage {
@@ -275,10 +350,28 @@ model Booking {
   completedAt    DateTime?
   cancelledAt    DateTime?
   confirmationReference String? @unique
+  slotId         String?
+  startsAt       DateTime?     @db.Timestamptz(3)
+  endsAt         DateTime?     @db.Timestamptz(3)
+  timezone       String?       @db.VarChar(64)
+  reservationIdempotencyKey String? @db.VarChar(128)
+  reservationRequestHash    String? @db.VarChar(64)
+  privateGuide   Boolean?
+  unitPriceAmount Int?
+  subtotalAmount Int?
+  guideFeeAmount Int?
+  extrasAmount   Int?
+  discountAmount Int?
+  vatRateBps     Int?
+  vatAmount      Int?
   traveller      User          @relation("TravellerBookings", fields: [travellerId], references: [id], onDelete: Restrict)
   experience     Experience    @relation(fields: [experienceId], references: [id], onDelete: Restrict)
   guide          GuideProfile  @relation("GuideBookings", fields: [guideId], references: [id], onDelete: Restrict)
-  payment        Payment?
+  slot           TourSlot?     @relation(fields: [slotId], references: [id], onDelete: Restrict)
+  slotReservation SlotReservation?
+  events         BookingEvent[]
+  invoice        Invoice?
+  payments       Payment[]
   commission     Commission?
   review         Review?
 
@@ -286,6 +379,8 @@ model Booking {
   @@index([guideId, status])
   @@index([experienceId, bookingDate])
   @@index([status, bookingDate])
+  @@index([slotId])
+  @@unique([travellerId, reservationIdempotencyKey])
 }
 
 model Review {
@@ -311,16 +406,26 @@ model Review {
 }
 
 model Payment {
-  id            String        @id @default(cuid())
-  bookingId     String        @unique
-  amount        Int // Amount in minor currency units.
-  currency      String        @default("ZAR") @db.VarChar(3)
-  provider      String
-  transactionId String?       @unique
-  status        PaymentStatus @default(PENDING)
-  createdAt     DateTime      @default(now())
-  booking       Booking       @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  id                String        @id @default(cuid())
+  bookingId         String
+  amount            Int // Amount in minor currency units.
+  currency          String        @default("ZAR") @db.VarChar(3)
+  provider          String
+  transactionId     String?       @unique
+  providerPaymentId String?
+  idempotencyKey    String?       @unique
+  status            PaymentStatus @default(PENDING)
+  failureCode       String?
+  failureMessage    String?
+  metadata          Json?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @default(now()) @updatedAt @db.Timestamptz(3)
+  paidAt            DateTime?     @db.Timestamptz(3)
+  failedAt          DateTime?     @db.Timestamptz(3)
+  booking           Booking       @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  events            PaymentEvent[]
 
+  @@index([bookingId])
   @@index([provider, transactionId])
   @@index([status, createdAt])
 }
@@ -336,3 +441,200 @@ model Commission {
 
   @@index([status, createdAt])
 }
+
+/// Recurring weekly availability template. dayOfWeek follows JS/PostgreSQL getDay(): 0 = Sunday .. 6 = Saturday.
+/// endTimeLocal defines the same-day range; durationMinutes remains only for compatibility.
+model AvailabilityRule {
+  id               String    @id @default(cuid())
+  experienceId     String
+  dayOfWeek        Int
+  startTimeLocal   String    @db.VarChar(5)
+  endTimeLocal     String    @db.VarChar(5)
+  durationMinutes  Int?
+  capacityOverride Int?
+  seasonStartDate  DateTime? @db.Date
+  seasonEndDate    DateTime? @db.Date
+  active           Boolean   @default(true)
+  createdAt        DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime  @default(now()) @updatedAt @db.Timestamptz(3)
+  experience       Experience @relation(fields: [experienceId], references: [id], onDelete: Cascade)
+
+  @@index([experienceId, active])
+  @@index([experienceId, dayOfWeek])
+}
+
+/// Date/period-specific override applied on top of AvailabilityRule when generating or adjusting slots.
+model AvailabilityException {
+  id               String                    @id @default(cuid())
+  experienceId     String
+  type             AvailabilityExceptionType
+  date             DateTime?                 @db.Date
+  startsAt         DateTime?                 @db.Timestamptz(3)
+  endsAt           DateTime?                 @db.Timestamptz(3)
+  capacityOverride Int?
+  reason           String?
+  createdAt        DateTime                  @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime                  @default(now()) @updatedAt @db.Timestamptz(3)
+  experience       Experience                @relation(fields: [experienceId], references: [id], onDelete: Cascade)
+
+  @@index([experienceId, date])
+  @@index([experienceId, startsAt, endsAt])
+}
+
+
+/// A concrete departure. Stored instants are UTC (timestamptz); timezone is its IANA display zone.
+/// Reservation status and expiry are authoritative for capacity; seat counters are transactional mirrors.
+model TourSlot {
+  id             String            @id @default(cuid())
+  experienceId   String
+  guideId        String
+  startsAt       DateTime          @db.Timestamptz(3)
+  endsAt         DateTime          @db.Timestamptz(3)
+  timezone       String            @db.VarChar(64)
+  capacity       Int
+  privateBookingEnabled Boolean    @default(false)
+  committedSeats Int               @default(0)
+  heldSeats      Int               @default(0)
+  status         TourSlotStatus    @default(OPEN)
+  createdAt      DateTime          @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime          @default(now()) @updatedAt @db.Timestamptz(3)
+  experience     Experience        @relation(fields: [experienceId], references: [id], onDelete: Cascade)
+  guide          GuideProfile      @relation("GuideSlots", fields: [guideId], references: [id], onDelete: Restrict)
+  reservations   SlotReservation[]
+  bookings       Booking[]
+
+  @@unique([experienceId, startsAt])
+  @@index([experienceId, status, startsAt])
+  @@index([guideId, startsAt])
+  @@index([status, startsAt])
+}
+
+/// A capacity commitment against a slot (hold or committed booking seats). bookingId is unique once a booking exists.
+model SlotReservation {
+  id         String                @id @default(cuid())
+  slotId     String
+  bookingId  String                @unique
+  partySize  Int
+  status     SlotReservationStatus @default(HELD)
+  expiresAt  DateTime?             @default(dbgenerated("(CURRENT_TIMESTAMP + '00:30:00'::interval)")) @db.Timestamptz(3)
+  releasedAt DateTime?             @db.Timestamptz(3)
+  createdAt  DateTime              @default(now()) @db.Timestamptz(3)
+  updatedAt  DateTime              @default(now()) @updatedAt @db.Timestamptz(3)
+  slot       TourSlot              @relation(fields: [slotId], references: [id], onDelete: Cascade)
+  booking    Booking               @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  events     BookingEvent[]
+
+  @@index([slotId, status, expiresAt])
+  @@index([status, expiresAt])
+}
+
+/// Recurring weekly working hours for a guide. dayOfWeek uses the same 0 = Sunday convention.
+model GuideScheduleRule {
+  id             String       @id @default(cuid())
+  guideId        String
+  dayOfWeek      Int
+  startTimeLocal String       @db.VarChar(5)
+  endTimeLocal   String       @db.VarChar(5)
+  effectiveFrom  DateTime?    @db.Date
+  effectiveTo    DateTime?    @db.Date
+  active         Boolean      @default(true)
+  createdAt      DateTime     @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime     @default(now()) @updatedAt @db.Timestamptz(3)
+  guide          GuideProfile @relation(fields: [guideId], references: [id], onDelete: Cascade)
+
+  @@index([guideId, active])
+  @@index([guideId, dayOfWeek])
+}
+
+/// Guide-specific exception window (leave, blocked period, personal unavailability). Instants are UTC.
+model GuideUnavailability {
+  id        String       @id @default(cuid())
+  guideId   String
+  startsAt  DateTime     @db.Timestamptz(3)
+  endsAt    DateTime     @db.Timestamptz(3)
+  allDay    Boolean      @default(false)
+  reason    String?
+  createdAt DateTime     @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime     @default(now()) @updatedAt @db.Timestamptz(3)
+  guide     GuideProfile @relation(fields: [guideId], references: [id], onDelete: Cascade)
+
+  @@index([guideId, startsAt, endsAt])
+}
+
+
+/// Immutable audit trail of booking lifecycle events. Application event emission is a later phase.
+model BookingEvent {
+  id               String           @id @default(cuid())
+  bookingId        String
+  reservationId    String?
+  type             BookingEventType
+  fromStatus       BookingStatus?
+  toStatus         BookingStatus?
+  actorId          String?
+  actorRole        UserRole?
+  paymentReference String?
+  metadata         Json?
+  createdAt        DateTime         @default(now()) @db.Timestamptz(3)
+  booking          Booking          @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  reservation      SlotReservation? @relation(fields: [reservationId], references: [id], onDelete: Restrict)
+  actor            User?            @relation("BookingEventActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([bookingId, createdAt])
+  @@index([reservationId, createdAt])
+  @@index([type])
+  @@index([actorId])
+}
+
+/// Raw/processed payment provider notification used for idempotent, replay-safe webhook handling.
+model PaymentEvent {
+  id                String   @id @default(cuid())
+  paymentId         String?
+  provider          String
+  providerEventId   String
+  eventType         String?
+  payload           Json?
+  signatureVerified Boolean  @default(false)
+  processedAt       DateTime? @db.Timestamptz(3)
+  createdAt         DateTime  @default(now()) @db.Timestamptz(3)
+  payment           Payment? @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+
+  @@unique([provider, providerEventId])
+  @@index([paymentId])
+  @@index([createdAt])
+}
+
+/// Immutable financial snapshot for a booking. VAT treatment and legal issuer details are intentionally undecided.
+model Invoice {
+  id                     String        @id @default(cuid())
+  invoiceNumber          String        @unique
+  bookingId              String        @unique
+  customerUserId         String?
+  customerName           String?
+  customerEmail          String?
+  customerBillingAddress Json?
+  customerVatNumber      String?
+  experienceTitle        String?
+  experienceStartsAt     DateTime?     @db.Timestamptz(3)
+  guideName              String?
+  subtotalAmount         Int
+  guideFeeAmount         Int           @default(0)
+  extrasAmount           Int           @default(0)
+  discountAmount         Int           @default(0)
+  vatRateBps             Int?
+  vatAmount              Int           @default(0)
+  totalAmount            Int
+  currency               String        @default("ZAR") @db.VarChar(3)
+  paymentReference       String?
+  status                 InvoiceStatus @default(DRAFT)
+  issuedAt               DateTime?     @db.Timestamptz(3)
+  dueAt                  DateTime?     @db.Timestamptz(3)
+  pdfStorageRef          String?
+  createdAt              DateTime      @default(now()) @db.Timestamptz(3)
+  updatedAt              DateTime      @default(now()) @updatedAt @db.Timestamptz(3)
+  booking                Booking       @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  customer               User?         @relation("CustomerInvoices", fields: [customerUserId], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt])
+  @@index([customerUserId])
+}
+

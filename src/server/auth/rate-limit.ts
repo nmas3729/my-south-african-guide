@@ -17,4 +17,6 @@ export const authRateLimits = {
   passwordReset: { limit: 5, windowMs: 60 * 60 * 1000 },
   emailVerification: { limit: 10, windowMs: 60 * 60 * 1000 },
   booking: { limit: 30, windowMs: 60 * 60 * 1000 },
+  reservation: { limit: 30, windowMs: 60 * 60 * 1000 },
+  availability: { limit: 10, windowMs: 60 * 60 * 1000 },
 } satisfies Record<string, RateLimitOptions>;

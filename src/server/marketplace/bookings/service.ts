@@ -1,8 +1,8 @@
-import { randomUUID } from "node:crypto";
-import { Prisma, BookingStatus, ExperienceStatus, VerificationStatus } from "@prisma/client";
+import { BookingEventType, BookingStatus, ExperienceStatus, Prisma, UserRole, VerificationStatus } from "@prisma/client";
 import { prisma } from "@/server/db/client";
 import { requireRole, requireUser } from "@/server/auth/session";
 import { assertBookingTransition } from "@/server/marketplace/bookings/state-machine";
+import { lockSlotForLifecycle, releaseReservationForBooking } from "@/server/marketplace/availability/reservation-lifecycle";
 import { AuthorizationError, ConflictError, NotFoundError, ValidationError } from "@/server/marketplace/shared/errors";
 import type { BookingDto, BookingSummary } from "@/server/marketplace/shared/dtos";
 import { bookingRequestSchema } from "@/server/marketplace/shared/schemas";
@@ -219,46 +219,37 @@ export async function declineBookingRequest(bookingId: string): Promise<BookingD
   if (!guide) throw new NotFoundError("Guide profile not found.");
 
   const result = await prisma.$transaction(async (tx: Prisma.TransactionClient): Promise<BookingDto> => {
-    const booking = await tx.booking.findUnique({ where: { id: bookingId }, select: { id: true, guideId: true, status: true } });
+    const booking = await tx.booking.findUnique({ where: { id: bookingId }, select: { id: true, travellerId: true, guideId: true, status: true, slotId: true } });
     if (!booking) throw new NotFoundError("Booking not found.");
     if (booking.guideId !== guide.id) throw new AuthorizationError();
     assertBookingTransition(booking.status, BookingStatus.DECLINED);
 
+    // Lock the departure before touching the booking, matching the Phase 2C lock order.
+    if (booking.slotId) await lockSlotForLifecycle(tx, booking.slotId);
+
+    const now = new Date();
     const updated = await tx.booking.updateMany({
       where: { id: bookingId, guideId: guide.id, status: BookingStatus.REQUESTED },
-      data: { status: BookingStatus.DECLINED, declinedAt: new Date(), updatedAt: new Date() },
+      data: { status: BookingStatus.DECLINED, declinedAt: now, updatedAt: now },
     });
     if (updated.count !== 1) throw new ConflictError("This booking can no longer be declined.");
 
-    const refreshed: BookingRecord | null = await tx.booking.findUnique({ where: { id: bookingId }, select: bookingSelect });
-    if (!refreshed) throw new NotFoundError("Booking not found.");
-    return mapBookingRecord(refreshed);
-  });
-
-  return result;
-}
-
-export async function confirmBooking(bookingId: string): Promise<BookingDto> {
-  const traveller = await requireRole("TRAVELLER");
-
-  const result = await prisma.$transaction(async (tx: Prisma.TransactionClient): Promise<BookingDto> => {
-    const booking = await tx.booking.findUnique({ where: { id: bookingId }, select: { id: true, travellerId: true, status: true } });
-    if (!booking) throw new NotFoundError("Booking not found.");
-    if (booking.travellerId !== traveller.id) throw new AuthorizationError();
-    assertBookingTransition(booking.status, BookingStatus.CONFIRMED);
-
-    let confirmationReference = `MSAG-${randomUUID().slice(0, 8).toUpperCase()}`;
-    let existingReference = await tx.booking.findUnique({ where: { confirmationReference }, select: { id: true } });
-    while (existingReference) {
-      confirmationReference = `MSAG-${randomUUID().slice(0, 8).toUpperCase()}`;
-      existingReference = await tx.booking.findUnique({ where: { confirmationReference }, select: { id: true } });
-    }
-
-    const updated = await tx.booking.updateMany({
-      where: { id: bookingId, travellerId: traveller.id, status: BookingStatus.ACCEPTED },
-      data: { status: BookingStatus.CONFIRMED, confirmedAt: new Date(), confirmationReference, updatedAt: new Date() },
+    await tx.bookingEvent.create({
+      data: { bookingId, type: BookingEventType.STATUS_CHANGED, fromStatus: booking.status, toStatus: BookingStatus.DECLINED, actorId: guideUser.id, actorRole: UserRole.GUIDE },
     });
-    if (updated.count !== 1) throw new ConflictError("This booking can no longer be confirmed.");
+
+    // A declined booking must free its seats. Done in the same transaction so there is never a
+    // DECLINED booking still holding capacity.
+    if (booking.slotId) {
+      await releaseReservationForBooking(tx, {
+        bookingId,
+        slotId: booking.slotId,
+        now,
+        actorId: guideUser.id,
+        actorRole: UserRole.GUIDE,
+        metadata: { reason: "GUIDE_DECLINED" },
+      });
+    }
 
     const refreshed: BookingRecord | null = await tx.booking.findUnique({ where: { id: bookingId }, select: bookingSelect });
     if (!refreshed) throw new NotFoundError("Booking not found.");
@@ -270,7 +261,7 @@ export async function confirmBooking(bookingId: string): Promise<BookingDto> {
 
 export async function cancelBookingRequest(bookingId: string): Promise<BookingDto> {
   const user = await requireUser();
-  const booking = await prisma.booking.findUnique({ where: { id: bookingId }, select: { id: true, travellerId: true, guideId: true, status: true } });
+  const booking = await prisma.booking.findUnique({ where: { id: bookingId }, select: { id: true, travellerId: true, guideId: true, status: true, slotId: true } });
   if (!booking) throw new NotFoundError("Booking not found.");
 
   if (user.role === "TRAVELLER" && booking.travellerId !== user.id) throw new AuthorizationError();
@@ -281,13 +272,37 @@ export async function cancelBookingRequest(bookingId: string): Promise<BookingDt
 
   assertBookingTransition(booking.status, BookingStatus.CANCELLED);
 
-  const updated = await prisma.booking.updateMany({
-    where: { id: bookingId, status: booking.status },
-    data: { status: BookingStatus.CANCELLED, cancelledAt: new Date(), updatedAt: new Date() },
-  });
-  if (updated.count !== 1) throw new ConflictError("This booking can no longer be cancelled.");
+  const result = await prisma.$transaction(async (tx: Prisma.TransactionClient): Promise<BookingDto> => {
+    // Lock the departure before the booking so cancellation serializes with reservation creation.
+    if (booking.slotId) await lockSlotForLifecycle(tx, booking.slotId);
 
-  const refreshed: BookingRecord | null = await prisma.booking.findUnique({ where: { id: bookingId }, select: bookingSelect });
-  if (!refreshed) throw new NotFoundError("Booking not found.");
-  return mapBookingRecord(refreshed);
+    const now = new Date();
+    const updated = await tx.booking.updateMany({
+      where: { id: bookingId, status: booking.status },
+      data: { status: BookingStatus.CANCELLED, cancelledAt: now, updatedAt: now },
+    });
+    if (updated.count !== 1) throw new ConflictError("This booking can no longer be cancelled.");
+
+    await tx.bookingEvent.create({
+      data: { bookingId, type: BookingEventType.STATUS_CHANGED, fromStatus: booking.status, toStatus: BookingStatus.CANCELLED, actorId: user.id, actorRole: user.role },
+    });
+
+    // Release the hold in the same transaction, so a CANCELLED booking never still holds seats.
+    if (booking.slotId) {
+      await releaseReservationForBooking(tx, {
+        bookingId,
+        slotId: booking.slotId,
+        now,
+        actorId: user.id,
+        actorRole: user.role,
+        metadata: { reason: "BOOKING_CANCELLED" },
+      });
+    }
+
+    const refreshed: BookingRecord | null = await tx.booking.findUnique({ where: { id: bookingId }, select: bookingSelect });
+    if (!refreshed) throw new NotFoundError("Booking not found.");
+    return mapBookingRecord(refreshed);
+  });
+
+  return result;
 }
