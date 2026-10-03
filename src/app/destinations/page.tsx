@@ -1,6 +1,8 @@
 import { MarketplacePage } from "@/components/secondary-page";
-export const metadata = {
+import type { Metadata } from "next";
+export const metadata: Metadata = {
   title: "South Africa Destinations",
-  description: "Explore South Africa by province, from Cape Town and the coast to vibrant cities, mountain landscapes and wildlife regions.",
+  description: "Explore all nine provinces of South Africa, from Cape Town and the coast to vibrant cities, mountain landscapes and wildlife regions.",
+  alternates: { canonical: "/destinations" },
 };
 export default function DestinationsPage() { return <MarketplacePage kind="destinations" />; }

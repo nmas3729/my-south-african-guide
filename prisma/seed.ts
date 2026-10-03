@@ -56,6 +56,20 @@ type SeedExperience = {
 
 const destinations: SeedDestination[] = [
   {
+    slug: "eastern-cape",
+    name: "Eastern Cape",
+    province: "Eastern Cape",
+    description: "Wild coast, elephant country and a heartland rich with living history.",
+    image: "https://images.unsplash.com/photo-1504173010664-32509aeebb62?auto=format&fit=crop&w=1200&q=85",
+  },
+  {
+    slug: "free-state",
+    name: "Free State",
+    province: "Free State",
+    description: "Golden grasslands, mountain light and wide skies over open farmland.",
+    image: "https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=1200&q=85",
+  },
+  {
     slug: "western-cape",
     name: "Cape Town and the Western Cape",
     province: "Western Cape",
@@ -75,6 +89,34 @@ const destinations: SeedDestination[] = [
     province: "Gauteng",
     description: "A creative, restless province where history meets tomorrow.",
     image: "https://images.unsplash.com/photo-1516026672322-bc52d61a55d5?auto=format&fit=crop&w=1200&q=85",
+  },
+  {
+    slug: "limpopo",
+    name: "Limpopo",
+    province: "Limpopo",
+    description: "Baobab horizons, warm bushveld days and the gateway to the greater Kruger.",
+    image: "https://images.unsplash.com/photo-1516908205727-40afad9449a8?auto=format&fit=crop&w=1200&q=85",
+  },
+  {
+    slug: "mpumalanga",
+    name: "Mpumalanga",
+    province: "Mpumalanga",
+    description: "Waterfall country, escarpment views and safari roads into the lowveld.",
+    image: "https://images.unsplash.com/photo-1547471080-7cc2caa01a7e?auto=format&fit=crop&w=1200&q=85",
+  },
+  {
+    slug: "north-west",
+    name: "North West",
+    province: "North West",
+    description: "Sunlit bushveld, Magaliesberg ridges and big-sky safari country.",
+    image: "https://images.unsplash.com/photo-1472214103451-9374bd1c798e?auto=format&fit=crop&w=1200&q=85",
+  },
+  {
+    slug: "northern-cape",
+    name: "Northern Cape",
+    province: "Northern Cape",
+    description: "Desert light, diamond-town history and Namaqualand's wildflower spring.",
+    image: "https://images.unsplash.com/photo-1549366021-9f761d450615?auto=format&fit=crop&w=1200&q=85",
   },
   {
     slug: "greater-kruger",

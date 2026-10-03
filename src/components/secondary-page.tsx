@@ -1,7 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight, Check, MapPin, Star } from "lucide-react";
-import { destinations } from "@/lib/marketplace";
+import { destinations, type ExperienceSearchState } from "@/lib/marketplace";
 import { Footer, MarketplaceResults, Navbar, RequestForm, TrustBadge } from "@/components/marketplace";
 
 const pageImages: Record<string, string> = {
@@ -15,13 +15,13 @@ export function PageHero({ eyebrow, title, copy, image }: { eyebrow: string; tit
   return <section className="relative flex min-h-[500px] items-end overflow-hidden bg-ink pb-16 pt-32 text-white"><Image src={image ?? pageImages.experiences} alt="South African landscape" fill priority sizes="100vw" className="object-cover object-center" /><div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(7,26,43,.88)_0%,rgba(7,26,43,.62)_52%,rgba(7,26,43,.3)_100%)]" /><div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-ink/60 to-transparent" /><Navbar /><div className="relative mx-auto w-full max-w-[1320px] px-5 lg:px-8"><div className="max-w-3xl"><p className="eyebrow text-gold">{eyebrow}</p><h1 className="mt-4 max-w-3xl font-serif text-5xl leading-[.9] tracking-[-0.02em] md:text-7xl xl:text-8xl">{title}</h1><p className="mt-6 max-w-xl text-base leading-relaxed text-white/72 md:text-lg">{copy}</p></div></div></section>;
 }
 
-export function MarketplacePage({ kind }: { kind: "guides" | "experiences" | "destinations" }) {
+export function MarketplacePage({ kind, initialSearch }: { kind: "guides" | "experiences" | "destinations"; initialSearch?: ExperienceSearchState }) {
   const config = {
     guides: ["The people who know", "Meet your local experts.", "Historians, conservationists, creatives and storytellers, ready to show you their South Africa."],
     experiences: ["Go deeper", "Find your kind of South Africa.", "Thoughtful, local-led experiences for travellers who want to feel a place, not just see it."],
     destinations: ["Nine provinces, one remarkable country", "Where will your story begin?", "Explore landscapes, cities and communities, each with their own distinct rhythm and welcome."],
   }[kind];
-  return <main><PageHero eyebrow={config[0]} title={config[1]} copy={config[2]} image={pageImages[kind]} /><section className="bg-cream px-5 py-20 lg:px-8"><div className="mx-auto max-w-[1320px]">{kind !== "destinations" ? <MarketplaceResults kind={kind} /> : <div className="grid gap-4 md:grid-cols-3">{destinations.map((item) => <Link href={`/destinations/${item.slug}`} key={item.slug} className="ambient-card group relative block aspect-[.82] overflow-hidden rounded-[6px] border border-ink/10"><Image src={item.heroImage} alt={item.name} fill sizes="33vw" className="object-cover transition duration-700 group-hover:scale-105" /><div className="absolute inset-0 bg-gradient-to-t from-ink/90 via-ink/10 to-transparent" /><div className="absolute bottom-0 p-6 text-white"><p className="eyebrow text-gold">{item.province}</p><h2 className="mt-2 font-serif text-3xl">{item.name}</h2><p className="mt-2 text-xs text-white/70">{item.description}</p></div></Link>)}</div>}</div></section><Footer /></main>;
+  return <main><PageHero eyebrow={config[0]} title={config[1]} copy={config[2]} image={pageImages[kind]} /><section className="bg-cream px-5 py-20 lg:px-8"><div className="mx-auto max-w-[1320px]">{kind !== "destinations" ? <MarketplaceResults kind={kind} initialSearch={initialSearch} /> : <div className="grid gap-4 md:grid-cols-3">{destinations.map((item) => <Link href={`/destinations/${item.slug}`} key={item.slug} className="ambient-card group relative block aspect-[.82] overflow-hidden rounded-[6px] border border-ink/10"><Image src={item.heroImage} alt={item.name} fill sizes="33vw" className="object-cover transition duration-700 group-hover:scale-105" /><div className="absolute inset-0 bg-gradient-to-t from-ink/90 via-ink/10 to-transparent" /><div className="absolute bottom-0 p-6 text-white"><p className="eyebrow text-gold">{item.province}</p><h2 className="mt-2 font-serif text-3xl">{item.name}</h2><p className="mt-2 text-xs text-white/70">{item.description}</p></div></Link>)}</div>}</div></section><Footer /></main>;
 }
 
 export function DetailPage({ title, eyebrow, copy, image, story, highlights = [], requestSubject = title, ctaLabel = "Request to Book" }: { title: string; eyebrow: string; copy: string; image: string; story?: string; highlights?: string[]; requestSubject?: string; ctaLabel?: string }) {

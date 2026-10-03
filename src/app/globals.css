@@ -120,6 +120,8 @@ img {
 
 .search-field span {
   display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
   flex-direction: column;
   gap: 3px;
 }
@@ -136,6 +138,38 @@ img {
   color: var(--ink);
   font-size: 13px;
   font-weight: 600;
+}
+
+.search-field select,
+.search-field input[type="date"] {
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.search-field select:focus,
+.search-field input[type="date"]:focus {
+  outline: none;
+}
+
+.search-field input[type="date"]::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 0.55;
+}
+
+.search-field:hover {
+  background: rgba(7, 26, 43, 0.035);
+}
+
+.search-field:focus-within {
+  background: rgba(201, 164, 92, 0.12);
 }
 
 @media (max-width: 768px) {
